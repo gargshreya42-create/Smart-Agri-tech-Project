@@ -1,0 +1,5231 @@
+{
+  "info": {
+    "name": "Smart Agri-Tech API",
+    "description": "Run order: seed the database (npm run seed), start the server, then run the folders top to bottom (Collection Runner works). Folder 1 stores the farmer and admin JWTs used by everything else.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Authentication",
+      "description": "Registration, login, JWT-protected routes and role checks. Run \"Login — farmer\" and \"Login — admin\" first; they store the tokens used by every other request.",
+      "item": [
+        {
+          "name": "Register farmer",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = Date.now();",
+                  "pm.collectionVariables.set(\"regEmail\", `postman.${run}@example.com`);",
+                  "pm.collectionVariables.set(\"regPhone\", \"9\" + String(run).slice(-9));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"newFarmerToken\", json.data.token); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Password is never returned\", () => pm.expect(JSON.stringify(json)).to.not.include(\"password\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Farmer\",\n  \"email\": \"{{regEmail}}\",\n  \"phone\": \"{{regPhone}}\",\n  \"password\": \"Farmer@123\",\n  \"confirmPassword\": \"Farmer@123\",\n  \"location\": \"Bhopal, Madhya Pradesh\",\n  \"language\": \"hi\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register — validation errors (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"A\",\n  \"email\": \"not-an-email\",\n  \"phone\": \"123\",\n  \"password\": \"short\",\n  \"confirmPassword\": \"x\",\n  \"location\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register — duplicate email (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", () => pm.response.to.have.status(409));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ramesh Again\",\n  \"email\": \"ramesh.verma@example.com\",\n  \"phone\": \"9111111111\",\n  \"password\": \"Farmer@123\",\n  \"confirmPassword\": \"Farmer@123\",\n  \"location\": \"Bhopal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register — cannot self-create admin (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sneaky Admin\",\n  \"email\": \"sneaky.admin@example.com\",\n  \"phone\": \"9222222222\",\n  \"password\": \"Admin@12345\",\n  \"confirmPassword\": \"Admin@12345\",\n  \"location\": \"Bhopal\",\n  \"role\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login — farmer (seed user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"token\", json.data.token); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Role is farmer\", () => pm.expect(json.data.user.role).to.eql(\"farmer\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"ramesh.verma@example.com\",\n  \"password\": \"Farmer@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login — admin (seed user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"adminToken\", json.data.token); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Role is admin\", () => pm.expect(json.data.user.role).to.eql(\"admin\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"admin@smartagritech.in\",\n  \"password\": \"Admin@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login — by phone number",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"9826012345\",\n  \"password\": \"Farmer@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login — wrong password (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"ramesh.verma@example.com\",\n  \"password\": \"WrongPass1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login — injection attempt rejected (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"identifier\": { \"$ne\": null }, \"password\": \"x\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Current user (protected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Current user — no token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Current user — bad token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{badToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Farms",
+      "item": [
+        {
+          "name": "Create farm",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"farmName\", \"Postman Test Farm \" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"farmId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/farms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "farms"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{farmName}}\",\n  \"location\": \"Berasia, Bhopal\",\n  \"sizeAcres\": 6.5,\n  \"soilType\": \"Black (Regur)\",\n  \"irrigationType\": \"Drip\",\n  \"farmingType\": \"Organic\",\n  \"primaryCrops\": [\n    \"Wheat\",\n    \"Chickpea\"\n  ],\n  \"notes\": \"Created from Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create farm — validation errors (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/farms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "farms"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"location\": \"Bhopal\",\n  \"sizeAcres\": -3,\n  \"soilType\": \"Moon dust\",\n  \"irrigationType\": \"Drip\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create farm — admin is not allowed (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/farms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "farms"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin Farm\",\n  \"location\": \"Bhopal\",\n  \"sizeAcres\": 1,\n  \"soilType\": \"Loamy\",\n  \"irrigationType\": \"Drip\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List my farms",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Farmer sees only own farms\", () => json.data.forEach(f => pm.expect(f).to.have.property(\"cropCount\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/farms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "farms"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search farms",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/farms?q=berasia",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "farms"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "berasia"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get farm",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/farms/{{farmId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "farms",
+                "{{farmId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update farm",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/farms/{{farmId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "farms",
+                "{{farmId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sizeAcres\": 7,\n  \"notes\": \"Updated from Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get farm — invalid ID (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400\", () => pm.response.to.have.status(400));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/farms/not-an-id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "farms",
+                "not-an-id"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get farm — other farmer cannot see it (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", () => pm.response.to.have.status(404));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{newFarmerToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/farms/{{farmId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "farms",
+                "{{farmId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — list all farms",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/farms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "farms"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Crops",
+      "item": [
+        {
+          "name": "Create crop",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"cropId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Progress is computed\", () => pm.expect(json.data).to.have.property(\"progress\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crops",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crops"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"farm\": \"{{farmId}}\",\n  \"name\": \"Wheat\",\n  \"variety\": \"MP Sharbati\",\n  \"plantingDate\": \"2026-11-05\",\n  \"expectedHarvestDate\": \"2027-03-30\",\n  \"growthStage\": \"Planned\",\n  \"healthStatus\": \"Healthy\",\n  \"areaAcres\": 3,\n  \"irrigationMethod\": \"Drip\",\n  \"notes\": \"Postman crop\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create crop — harvest before planting (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crops",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crops"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"farm\": \"{{farmId}}\",\n  \"name\": \"Wheat\",\n  \"plantingDate\": \"2026-11-05\",\n  \"expectedHarvestDate\": \"2026-10-01\",\n  \"areaAcres\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create crop — farm of another user (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{newFarmerToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crops",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crops"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"farm\": \"{{farmId}}\",\n  \"name\": \"Wheat\",\n  \"plantingDate\": \"2026-11-05\",\n  \"expectedHarvestDate\": \"2027-03-01\",\n  \"areaAcres\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List crops (filter by stage)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crops?stage=Planned",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crops"
+              ],
+              "query": [
+                {
+                  "key": "stage",
+                  "value": "Planned"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get crop (with pest alerts, soil, activity)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crops/{{cropId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crops",
+                "{{cropId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update crop",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crops/{{cropId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crops",
+                "{{cropId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"growthStage\": \"Germination\",\n  \"healthStatus\": \"Needs Attention\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin — list all crops",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crops?limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crops"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Soil health",
+      "item": [
+        {
+          "name": "Create soil analysis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"soilId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Analysis is returned\", () => { pm.expect(json.data.analysis.overallStatus).to.be.a(\"string\"); pm.expect(json.data.analysis.recommendations).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/soil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soil"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"farm\": \"{{farmId}}\",\n  \"ph\": 7.2,\n  \"nitrogen\": 320,\n  \"phosphorus\": 18,\n  \"potassium\": 210,\n  \"moisture\": 42,\n  \"organicMatter\": 2.9\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create soil analysis — out-of-range pH (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/soil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soil"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"farm\": \"{{farmId}}\",\n  \"ph\": 19,\n  \"nitrogen\": 100,\n  \"phosphorus\": 10,\n  \"potassium\": 100,\n  \"moisture\": 20,\n  \"organicMatter\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List soil records",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/soil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soil"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin cannot use farmer soil endpoints (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/soil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soil"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Weather",
+      "item": [
+        {
+          "name": "Forecast for a location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Has current + forecast + alerts\", () => { pm.expect(json.data).to.have.property(\"current\"); pm.expect(json.data.forecast).to.be.an(\"array\"); pm.expect(json.data.alerts).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/weather?location=Bhopal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "weather"
+              ],
+              "query": [
+                {
+                  "key": "location",
+                  "value": "Bhopal"
+                }
+              ]
+            },
+            "description": "Needs internet access for live data. Offline, a previously cached (or seeded) record is returned with stale=true."
+          }
+        },
+        {
+          "name": "Forecast — unknown place (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", () => pm.response.to.have.status(404));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/weather?location=Zzqxwvland",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "weather"
+              ],
+              "query": [
+                {
+                  "key": "location",
+                  "value": "Zzqxwvland"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List active weather advisories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/weather/alerts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "weather",
+                "alerts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — publish advisory",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"weatherAlertId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/weather/alerts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "weather",
+                "alerts"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman advisory\",\n  \"message\": \"Test advisory published from Postman.\",\n  \"severity\": \"info\",\n  \"region\": \"All\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin — update advisory",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/weather/alerts/{{weatherAlertId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "weather",
+                "alerts",
+                "{{weatherAlertId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"severity\": \"warning\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Farmer cannot publish advisory (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/weather/alerts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "weather",
+                "alerts"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Nope\",\n  \"message\": \"Not allowed\",\n  \"severity\": \"info\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin — list cached weather records",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/weather/records",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "weather",
+                "records"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Pest alerts",
+      "item": [
+        {
+          "name": "List active alerts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pests"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List alerts for my crops (mine=true)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pests?mine=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pests"
+              ],
+              "query": [
+                {
+                  "key": "mine",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter by risk level",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pests?risk=High",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pests"
+              ],
+              "query": [
+                {
+                  "key": "risk",
+                  "value": "High"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — create alert",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"pestId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pests"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Blight\",\n  \"type\": \"Disease\",\n  \"crops\": [\n    \"Wheat\",\n    \"Chickpea\"\n  ],\n  \"riskLevel\": \"Medium\",\n  \"region\": \"Madhya Pradesh\",\n  \"description\": \"Test alert created from Postman.\",\n  \"preventiveSuggestions\": [\n    \"Rotate crops\"\n  ],\n  \"recommendedAction\": \"Scout the field weekly.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin — update alert (risk recalculated)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Risk score updated\", () => pm.expect(json.data.riskScore).to.eql(4));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pests/{{pestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pests",
+                "{{pestId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"riskLevel\": \"Critical\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin — validation errors (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pests"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"crops\": [],\n  \"riskLevel\": \"Extreme\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Farmer cannot create alert (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pests"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nope\",\n  \"crops\": [\n    \"Wheat\"\n  ],\n  \"riskLevel\": \"Low\",\n  \"description\": \"x\",\n  \"recommendedAction\": \"y\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Resources",
+      "item": [
+        {
+          "name": "Admin — create resource",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"resourceId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/resources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "resources"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Vermicompost\",\n  \"category\": \"Organic Products\",\n  \"brand\": \"Test Brand\",\n  \"description\": \"Test product created from Postman.\",\n  \"price\": 600,\n  \"unit\": \"50 kg bag\",\n  \"stock\": 50,\n  \"available\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin — validation errors (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/resources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "resources"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"category\": \"Spaceships\",\n  \"price\": -5,\n  \"stock\": 1.5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List resources (search + filter + sort)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/resources?q=neem&category=Crop%20Care&sort=price-asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "resources"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "neem"
+                },
+                {
+                  "key": "category",
+                  "value": "Crop%20Care"
+                },
+                {
+                  "key": "sort",
+                  "value": "price-asc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List only in-stock resources",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/resources?availability=in-stock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "resources"
+              ],
+              "query": [
+                {
+                  "key": "availability",
+                  "value": "in-stock"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get resource",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/resources/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "resources",
+                "{{resourceId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — update stock / availability",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/resources/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "resources",
+                "{{resourceId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stock\": 40,\n  \"price\": 650\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Farmer cannot create resource (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/resources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "resources"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nope\",\n  \"category\": \"Seeds\",\n  \"description\": \"x\",\n  \"price\": 1,\n  \"unit\": \"1 kg\",\n  \"stock\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Orders",
+      "item": [
+        {
+          "name": "Create order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"orderId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Total is calculated server-side (2 x 650)\", () => pm.expect(json.data.totalAmount).to.eql(1300));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"resource\": \"{{resourceId}}\",\n      \"quantity\": 2\n    }\n  ],\n  \"delivery\": {\n    \"name\": \"Postman Farmer\",\n    \"phone\": \"9826012345\",\n    \"address\": \"Farm road, near water tank\",\n    \"city\": \"Bhopal\",\n    \"pincode\": \"462001\"\n  },\n  \"notes\": \"Please call before delivery\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create order — quantity above stock (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", () => pm.response.to.have.status(409));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"resource\": \"{{resourceId}}\",\n      \"quantity\": 999\n    }\n  ],\n  \"delivery\": {\n    \"name\": \"Postman Farmer\",\n    \"phone\": \"9826012345\",\n    \"address\": \"Farm road, near water tank\",\n    \"city\": \"Bhopal\",\n    \"pincode\": \"462001\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create order — invalid payload (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [],\n  \"delivery\": {\n    \"name\": \"X\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List my orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get order (with tracking history)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Has status history\", () => pm.expect(json.data.statusHistory).to.be.an(\"array\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — list all orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders?status=Pending",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Pending"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — confirm order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Confirmed\",\n  \"note\": \"Stock reserved\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin — invalid status jump (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", () => pm.response.to.have.status(409));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Delivered\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Farmer cannot update status (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Processing\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Farmer — cancel order (stock restored)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Order is cancelled\", () => pm.expect(json.data.status).to.eql(\"Cancelled\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "cancel"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel again (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", () => pm.response.to.have.status(409));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "cancel"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Experts & consultations",
+      "item": [
+        {
+          "name": "List experts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"expertId\", json.data[0]._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/experts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search experts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/experts?q=soil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experts"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "soil"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — create expert",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"newExpertId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/experts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experts"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dr. Postman Tester\",\n  \"title\": \"Agronomist\",\n  \"expertise\": \"Cropping systems\",\n  \"experienceYears\": 9,\n  \"specializations\": [\n    \"Wheat\",\n    \"Chickpea\"\n  ],\n  \"languages\": [\n    \"en\",\n    \"hi\"\n  ],\n  \"availability\": \"Mon–Fri, 10:00–14:00\",\n  \"bio\": \"Test expert created from Postman.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin — update expert",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/experts/{{newExpertId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experts",
+                "{{newExpertId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"experienceYears\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Request consultation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"consultationId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/consultations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "consultations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expert\": \"{{expertId}}\",\n  \"topic\": \"Nutrient plan for wheat\",\n  \"description\": \"Soil shows low phosphorus. Please suggest a fertiliser schedule for wheat on black soil.\",\n  \"crop\": \"Wheat\",\n  \"preferredDate\": \"{{$isoTimestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Request consultation — validation (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/consultations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "consultations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expert\": \"{{expertId}}\",\n  \"topic\": \"Hi\",\n  \"description\": \"short\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "My consultation history",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/consultations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "consultations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — accept request with response",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/consultations/{{consultationId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "consultations",
+                "{{consultationId}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Accepted\",\n  \"expertResponse\": \"Please share your latest soil report.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Farmer cannot mark completed (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/consultations/{{consultationId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "consultations",
+                "{{consultationId}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Completed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Farmer — cancel own request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/consultations/{{consultationId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "consultations",
+                "{{consultationId}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Cancelled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin — list all consultations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/consultations?status=Cancelled",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "consultations"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Cancelled"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Community",
+      "item": [
+        {
+          "name": "Create post",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"postId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman post: best time to sow gram?\",\n  \"body\": \"Testing the community API. What sowing window works best for chickpea near Bhopal?\",\n  \"category\": \"Farming Techniques\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create post — validation (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Hi\",\n  \"body\": \"short\",\n  \"category\": \"Nonsense\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List posts (recent)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List popular posts in a category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts?sort=popular&category=Pest%20%26%20Disease",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts"
+              ],
+              "query": [
+                {
+                  "key": "sort",
+                  "value": "popular"
+                },
+                {
+                  "key": "category",
+                  "value": "Pest%20%26%20Disease"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search posts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts?q=whitefly",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "whitefly"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add comment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"commentId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}/comments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}",
+                "comments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"I sow in the second week of October once soil moisture is right.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reply to comment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}/comments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}",
+                "comments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"Thanks, that matches what I saw too.\",\n  \"parent\": \"{{commentId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Like / unlike post",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}/like",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}",
+                "like"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get post with comments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Comment count matches\", () => pm.expect(json.data.comments.length).to.eql(json.data.post.commentCount));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update own post",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman post (edited): best time to sow gram?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Other farmer cannot edit it (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{newFarmerToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Hijacked title here\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin — hide post (moderation)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}/moderate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}",
+                "moderate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isHidden\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Hidden post is not visible to farmers (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", () => pm.response.to.have.status(404));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — restore post",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}/moderate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}",
+                "moderate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isHidden\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Farmer cannot moderate (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}/moderate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}",
+                "moderate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isHidden\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete comment (removes replies too)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}/comments/{{commentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}",
+                "comments",
+                "{{commentId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Profile & dashboard",
+      "item": [
+        {
+          "name": "Farmer dashboard",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Has stats and alerts\", () => { pm.expect(json.data.stats).to.have.property(\"totalFarms\"); pm.expect(json.data.alerts).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "dashboard"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recent activity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/activity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "activity"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"language\": \"hi\",\n  \"location\": \"Berasia, Bhopal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Change password — wrong current password (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => pm.response.to.have.status(422));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Nope12345\",\n  \"newPassword\": \"Farmer@1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin has no farmer dashboard (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "dashboard"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Admin",
+      "item": [
+        {
+          "name": "Dashboard statistics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });",
+                  "pm.test(\"Has totals\", () => pm.expect(json.data.totals).to.have.property(\"totalUsers\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "stats"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reports",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "reports"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List users (search + filter)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?role=farmer&status=active&q=ramesh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "role",
+                  "value": "farmer"
+                },
+                {
+                  "key": "status",
+                  "value": "active"
+                },
+                {
+                  "key": "q",
+                  "value": "ramesh"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create user (admin account)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = Date.now();",
+                  "pm.collectionVariables.set(\"staffEmail\", `staff.${run}@smartagritech.in`);",
+                  "pm.collectionVariables.set(\"staffPhone\", \"8\" + String(run).slice(-9));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "if (json.success) { pm.collectionVariables.set(\"createdUserId\", json.data._id); }",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Staff\",\n  \"email\": \"{{staffEmail}}\",\n  \"phone\": \"{{staffPhone}}\",\n  \"password\": \"Staff@12345\",\n  \"role\": \"admin\",\n  \"location\": \"Bhopal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Deactivate user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{createdUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{createdUserId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Cannot deactivate yourself (409)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + \"/auth/me\", header: { Authorization: \"Bearer \" + pm.collectionVariables.get(\"adminToken\") } }, (err, res) => { if (!err) pm.collectionVariables.set(\"adminUserId\", res.json().data.user._id); });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", () => pm.response.to.have.status(409));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{adminUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{adminUserId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Farmer cannot access admin stats (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "stats"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Farmer cannot list users (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "No token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "stats"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Error handling",
+      "item": [
+        {
+          "name": "Unknown route (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", () => pm.response.to.have.status(404));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/does-not-exist",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "does-not-exist"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Malformed JSON body (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400\", () => pm.response.to.have.status(400));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"identifier\": ",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Invalid ObjectId (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400\", () => pm.response.to.have.status(400));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crops/12345",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crops",
+                "12345"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Health check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reference data (enums for forms)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/meta",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meta"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Cleanup (run last)",
+      "item": [
+        {
+          "name": "Delete soil record",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/soil/{{soilId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soil",
+                "{{soilId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete crop",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crops/{{cropId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crops",
+                "{{cropId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete farm (cascades crops + soil)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/farms/{{farmId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "farms",
+                "{{farmId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete post",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/posts/{{postId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "community",
+                "posts",
+                "{{postId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — delete pest alert",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pests/{{pestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pests",
+                "{{pestId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — delete weather advisory",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/weather/alerts/{{weatherAlertId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "weather",
+                "alerts",
+                "{{weatherAlertId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — delete test expert",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/experts/{{newExpertId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experts",
+                "{{newExpertId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin — delete test resource",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/resources/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "resources",
+                "{{resourceId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Logout (invalidates the farmer token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Response uses the standard shape\", () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Old token no longer works (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));",
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "pm.test(\"Error response uses the standard shape\", () => { pm.expect(json.success).to.eql(false); pm.expect(json).to.have.property(\"message\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "newFarmerToken",
+      "value": ""
+    },
+    {
+      "key": "badToken",
+      "value": "this.is.not-a-valid-token"
+    }
+  ]
+}
